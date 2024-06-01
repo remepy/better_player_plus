@@ -153,9 +153,15 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
   }
 
   Widget _buildPlaceholder(BetterPlayerController betterPlayerController) {
+    var position = betterPlayerController.videoPlayerController?.value.position;
+    //使用isPlaying来判断是否播放，会导致一次黑屏闪烁,所以播放开始一段时间后来判断
+    if (position != null && position.inMilliseconds > 10) {
+      return const SizedBox.shrink();
+    }
+
     return betterPlayerController.betterPlayerDataSource!.placeholder ??
         betterPlayerController.betterPlayerConfiguration.placeholder ??
-        Container();
+        const SizedBox.shrink();
   }
 
   Widget _buildControls(
