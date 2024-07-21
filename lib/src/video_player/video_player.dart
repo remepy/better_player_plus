@@ -5,6 +5,7 @@
 // Dart imports:
 import 'dart:async';
 import 'dart:io';
+
 import 'package:better_player_plus/src/configuration/better_player_buffering_configuration.dart';
 import 'package:better_player_plus/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
@@ -290,6 +291,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     String? notificationChannelName,
     Duration? overriddenDuration,
     String? activityName,
+    String? packageName,
   }) {
     return _setDataSource(
       DataSource(
@@ -299,6 +301,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         showNotification: showNotification,
         title: title,
         author: author,
+        packageName: packageName,
         imageUrl: imageUrl,
         notificationChannelName: notificationChannelName,
         overriddenDuration: overriddenDuration,
@@ -330,6 +333,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     String? notificationChannelName,
     Duration? overriddenDuration,
     String? licenseUrl,
+    String? packageName,
     String? certificateUrl,
     Map<String, String>? drmHeaders,
     String? activityName,
@@ -356,6 +360,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         certificateUrl: certificateUrl,
         drmHeaders: drmHeaders,
         activityName: activityName,
+        packageName: packageName,
         clearKey: clearKey,
         videoExtension: videoExtension,
       ),
@@ -374,6 +379,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       String? notificationChannelName,
       Duration? overriddenDuration,
       String? activityName,
+      String? packageName,
       String? clearKey}) {
     return _setDataSource(
       DataSource(
@@ -386,6 +392,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           notificationChannelName: notificationChannelName,
           overriddenDuration: overriddenDuration,
           activityName: activityName,
+          packageName: packageName,
           clearKey: clearKey),
     );
   }

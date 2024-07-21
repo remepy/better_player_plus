@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:better_player_plus/src/configuration/better_player_buffering_configuration.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+
 import 'method_channel_video_player.dart';
 
 /// The interface that implementations of video_player must implement.
@@ -225,6 +226,7 @@ class DataSource {
     this.certificateUrl,
     this.drmHeaders,
     this.activityName,
+    this.packageName,
     this.clearKey,
     this.videoExtension,
   }) : assert(uri == null || asset == null);
@@ -302,6 +304,8 @@ class DataSource {
   final String? activityName;
 
   final String? clearKey;
+
+  final String? packageName;
 
   final String? videoExtension;
 
