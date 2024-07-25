@@ -32,10 +32,13 @@ class BetterPlayerSubtitle {
 
   static BetterPlayerSubtitle _handle2LinesSubtitles(List<String> scanner) {
     try {
-      final timeSplit = scanner[0].split(timerSeparator);
-      final start = _stringToDuration(timeSplit[0]);
-      final end = _stringToDuration(timeSplit[1]);
-      final texts = scanner.sublist(1, scanner.length);
+      final List<String> timeSplit = scanner[0].split(timerSeparator);
+      if (timeSplit.length != 2) {
+        return BetterPlayerSubtitle._();
+      }
+      final Duration start = _stringToDuration(timeSplit[0]);
+      final Duration end = _stringToDuration(timeSplit[1]);
+      final List<String> texts = scanner.sublist(1, scanner.length);
 
       return BetterPlayerSubtitle._(
         index: -1,
