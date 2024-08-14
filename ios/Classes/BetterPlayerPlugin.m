@@ -365,9 +365,11 @@ bool _remoteCommandsInitialized = false;
                     [player dispose];
                 }
             });
-            if ([_players count] == 0) {
-                [[AVAudioSession sharedInstance] setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
-            }
+            // Deactivating the audio session causes the audio to stop for the unity games.
+            // TODO: find a way to reactive from the unity side.
+            // if ([_players count] == 0) {
+                // [[AVAudioSession sharedInstance] setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+            // }
             result(nil);
         } else if ([@"setLooping" isEqualToString:call.method]) {
             [player setIsLooping:[argsMap[@"looping"] boolValue]];
