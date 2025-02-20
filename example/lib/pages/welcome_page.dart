@@ -23,6 +23,7 @@ import 'package:better_player_example/pages/overridden_aspect_ratio_page.dart';
 import 'package:better_player_example/pages/overriden_duration_page.dart';
 import 'package:better_player_example/pages/placeholder_until_play_page.dart';
 import 'package:better_player_example/pages/playlist_page.dart';
+import 'package:better_player_example/pages/remepy_player_page.dart';
 import 'package:better_player_example/pages/resolutions_page.dart';
 import 'package:better_player_example/pages/reusable_video_list/reusable_video_list_page.dart';
 import 'package:better_player_example/pages/rotation_and_fit_page.dart';
@@ -78,6 +79,9 @@ class _WelcomePageState extends State<WelcomePage> {
 
   List<Widget> buildExampleElementWidgets() {
     return [
+      _buildExampleElementWidget("Remepy player", () {
+        _navigateToPage(RemepyPlayerPage());
+      }),
       _buildExampleElementWidget("Basic player", () {
         _navigateToPage(BasicPlayerPage());
       }),
