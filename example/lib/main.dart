@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+final RouteObserver<ModalRoute> routeObserver = RouteObserver<ModalRoute>();
+
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
@@ -26,6 +28,7 @@ class MyApp extends StatelessWidget {
           primarySwatch: Colors.green,
         ),
         home: WelcomePage(),
+        navigatorObservers: [routeObserver]
       ),
     );
   }
