@@ -20,7 +20,7 @@ class RemepyPlayer extends StatefulWidget {
   late final String author;
 
   String get _subtitlesUrl =>
-      '$cdnUrl/subtitles/$movieName.srt?line_length=$_lineLength&v=$version';
+      'https://dev-cdn.remepy.com/subtitles/$movieName.srt?line_length=$_lineLength&v=$version';
 
   String get _url =>
       'https://dev-cdn.remepy.com/hls/2/$movieName/index.m3u8'; // video
@@ -52,49 +52,64 @@ class RemepyPlayer extends StatefulWidget {
   @override
   _RemepyPlayerState createState() => _RemepyPlayerState();
 
-  void pause() {_betterPlayerController.videoPlayerController?.pause();}
+  void pause() {
+    _betterPlayerController.videoPlayerController?.pause();
+  }
 }
 
 class _RemepyPlayerState extends State<RemepyPlayer> with RouteAware {
-
   bool isPlaying = true;
+
+  BetterPlayerDataSource get _dataSource {
+    Map<String, String> headers = {
+      'Authorization': 'Bearer ${widget.accessToken}',
+    };
+    List<BetterPlayerSubtitlesSource> subtitles = [
+      BetterPlayerSubtitlesSource(
+        type: BetterPlayerSubtitlesSourceType.network,
+        selectedByDefault: true,
+        urls: [widget._subtitlesUrl],
+        headers: headers,
+      )
+    ];
+    return BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      widget._url,
+      subtitles: subtitles,
+      headers: headers,
+      videoFormat: BetterPlayerVideoFormat.hls,
+    );
+  }
 
   @override
   void initState() {
-    BetterPlayerConfiguration betterPlayerConfiguration =
-        BetterPlayerConfiguration(
-      aspectRatio: 16 / 9,
-      fit: BoxFit.contain,
+    BetterPlayerConfiguration configuration = BetterPlayerConfiguration(
+      fit: BoxFit.fitHeight,
+      expandToFill: false,
       handleLifecycle: true,
+      // placeholder: Container(
+      //   color: AppThemeData.colorScheme.surface,
+      // ),
+      showPlaceholderUntilPlay: false,
+      controlsConfiguration: BetterPlayerControlsConfiguration(
+        enableMute: false,
+        enableSkips: false,
+        enableQualities: false,
+        enableSubtitles: true,
+        enableFullscreen: false,
+        enableAudioTracks: false,
+        enableOverflowMenu: false,
+        enablePlaybackSpeed: false,
+        showControls: true,
+      ),
     );
-    widget._betterPlayerController = BetterPlayerController(betterPlayerConfiguration);
-    _setupDataSource();
+    widget._betterPlayerController = BetterPlayerController(configuration,
+        betterPlayerDataSource: _dataSource);
+
     super.initState();
   }
 
-  void _setupDataSource() async {
-    // String imageUrl = await Utils.getFileUrl(Constants.logo);
-    BetterPlayerDataSource dataSource = BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network,
-      widget._url,
-      headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-      videoFormat: BetterPlayerVideoFormat.hls,
-      notificationConfiguration: BetterPlayerNotificationConfiguration(
-        showNotification: true,
-        title: "Remepy player",
-        author: widget.author,
-        //imageUrl: Constants.catImageUrl,
-      ),
-      subtitles: BetterPlayerSubtitlesSource.single(
-        type: BetterPlayerSubtitlesSourceType.network,
-        url: widget._subtitlesUrl,
-        headers: {'Authorization': 'Bearer ${widget.accessToken}'},
-        name: "My subtitles",
-        selectedByDefault: true,
-      ),
-    );
-    widget._betterPlayerController.setupDataSource(dataSource);
-  }
+  //widget._betterPlayerController.setupDataSource(dataSource);
 
   @override
   Widget build(BuildContext context) {
@@ -109,9 +124,14 @@ class _RemepyPlayerState extends State<RemepyPlayer> with RouteAware {
               style: TextStyle(fontSize: 16),
             ),
           ),
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: BetterPlayer(controller: widget._betterPlayerController),
+          Expanded(
+            child: LayoutBuilder(builder: (context, constraints) {
+              double availableHeight = constraints.maxHeight;
+              return SizedBox(
+                  height: availableHeight,
+                  child:
+                      BetterPlayer(controller: widget._betterPlayerController));
+            }),
           ),
           Row(
             children: [
@@ -174,7 +194,8 @@ class _RemepyPlayerState extends State<RemepyPlayer> with RouteAware {
 
   @override
   void didPopNext() {
-    print("GUYGUY ${widget.index} Returned to this screen (previous screen popped)");
+    print(
+        "GUYGUY ${widget.index} Returned to this screen (previous screen popped)");
   }
 
   Future<void> _rewind() async {

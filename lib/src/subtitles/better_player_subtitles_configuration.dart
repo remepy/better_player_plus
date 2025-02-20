@@ -40,7 +40,7 @@ class BetterPlayerSubtitlesConfiguration {
   final TextAlign textAlign;
 
   const BetterPlayerSubtitlesConfiguration({
-    this.fontSize = 14,
+    this.fontSize = 22,
     this.fontColor = Colors.white,
     this.outlineEnabled = false,
     this.outlineColor = Colors.black,
@@ -49,8 +49,8 @@ class BetterPlayerSubtitlesConfiguration {
     this.leftPadding = 5.0,
     this.rightPadding = 5.0,
     this.bottomPadding = 0.0,
-    this.alignment = Alignment.center,
-    this.backgroundColor = Colors.transparent,
+    this.alignment = Alignment.bottomCenter,
+    this.backgroundColor = const Color(0x99000000),
     this.textAlign = TextAlign.center,
   });
 }
