@@ -50,7 +50,7 @@ class BetterPlayerSubtitlesConfiguration {
     this.rightPadding = 5.0,
     this.bottomPadding = 0.0,
     this.alignment = Alignment.center,
-    this.backgroundColor = const Color(0x99000000),
+    this.backgroundColor = Colors.transparent,
     this.textAlign = TextAlign.center,
   });
 }
