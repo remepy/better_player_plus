@@ -151,7 +151,7 @@ class _BetterPlayerSubtitlesDrawerState
             _buildHtmlWidget(subtitleText, _outerTextStyle)
           else
             const SizedBox(),
-          _buildHtmlWidget(subtitleText, _innerTextStyle)
+          _buildTextWidget(subtitleText, _innerTextStyle)
         ],
       ),
     );
@@ -161,6 +161,14 @@ class _BetterPlayerSubtitlesDrawerState
     return HtmlWidget(
       text,
       textStyle: textStyle,
+    );
+  }
+
+  Widget _buildTextWidget(String text, TextStyle textStyle) {
+    return Text(
+      text,
+      style: textStyle,
+      textAlign: _configuration!.textAlign,
     );
   }
 
