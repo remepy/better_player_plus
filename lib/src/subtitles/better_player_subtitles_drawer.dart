@@ -144,14 +144,20 @@ class _BetterPlayerSubtitlesDrawerState
 
   Widget _getTextWithStroke(String subtitleText) {
     return Container(
-      color: _configuration!.backgroundColor,
+      constraints: const BoxConstraints(maxWidth: 600),
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+          borderRadius: const BorderRadius.all(
+            Radius.circular(10),
+          ),
+          color: _configuration!.backgroundColor),
       child: Stack(
         children: [
           if (_configuration!.outlineEnabled)
             _buildHtmlWidget(subtitleText, _outerTextStyle)
           else
             const SizedBox(),
-          _buildHtmlWidget(subtitleText, _innerTextStyle)
+          _buildTextWidget(subtitleText, _innerTextStyle)
         ],
       ),
     );
@@ -161,6 +167,14 @@ class _BetterPlayerSubtitlesDrawerState
     return HtmlWidget(
       text,
       textStyle: textStyle,
+    );
+  }
+
+  Widget _buildTextWidget(String text, TextStyle textStyle) {
+    return Text(
+      text,
+      style: textStyle,
+      textAlign: _configuration!.textAlign,
     );
   }
 

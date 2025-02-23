@@ -37,17 +37,20 @@ class BetterPlayerSubtitlesConfiguration {
   ///Background color of the subtitle
   final Color backgroundColor;
 
+  final TextAlign textAlign;
+
   const BetterPlayerSubtitlesConfiguration({
-    this.fontSize = 14,
+    this.fontSize = 22,
     this.fontColor = Colors.white,
-    this.outlineEnabled = true,
+    this.outlineEnabled = false,
     this.outlineColor = Colors.black,
     this.outlineSize = 2.0,
-    this.fontFamily = "Roboto",
-    this.leftPadding = 8.0,
-    this.rightPadding = 8.0,
-    this.bottomPadding = 20.0,
-    this.alignment = Alignment.center,
-    this.backgroundColor = Colors.transparent,
+    this.fontFamily = 'Assistant',
+    this.leftPadding = 5.0,
+    this.rightPadding = 5.0,
+    this.bottomPadding = 0.0,
+    this.alignment = Alignment.bottomCenter,
+    this.backgroundColor = const Color(0x99000000),
+    this.textAlign = TextAlign.center,
   });
 }
