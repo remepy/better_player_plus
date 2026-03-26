@@ -13,7 +13,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  collection: 1.19.0
+  collection: 1.19.1
   wakelock_plus: 1.5.1
   path_provider: 2.1.5
   visibility_detector: 0.4.0+2
