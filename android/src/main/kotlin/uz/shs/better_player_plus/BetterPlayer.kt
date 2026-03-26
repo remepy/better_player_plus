@@ -213,7 +213,8 @@ internal class BetterPlayer(
     fun setupPlayerNotification(
         context: Context, title: String, author: String?,
         imageUrl: String?, notificationChannelName: String?,
-        activityName: String, packageName: String
+        activityName: String, packageName: String,
+        skipForwardTimeInMs: Long, skipBackwardTimeInMs: Long
     ) {
         val mediaDescriptionAdapter: MediaDescriptionAdapter = object : MediaDescriptionAdapter {
             override fun getCurrentContentTitle(player: Player): String {
@@ -319,8 +320,8 @@ internal class BetterPlayer(
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
         // Set seek forward/back increments on ExoPlayer
-        exoPlayer?.seekBackIncrementMs = SEEK_BACK_INCREMENT_MS
-        exoPlayer?.seekForwardIncrementMs = SEEK_FORWARD_INCREMENT_MS
+        exoPlayer?.seekBackIncrementMs = skipBackwardTimeInMs
+        exoPlayer?.seekForwardIncrementMs = skipForwardTimeInMs
 
         playerNotificationManager?.apply {
 
@@ -713,7 +714,7 @@ internal class BetterPlayer(
 
                 override fun onFastForward() {
                     exoPlayer?.let {
-                        val newPos = (it.currentPosition + SEEK_FORWARD_INCREMENT_MS)
+                        val newPos = (it.currentPosition + skipForwardTimeInMs)
                             .coerceAtMost(it.duration)
                         it.seekTo(newPos)
                         sendSeekEvent(newPos)
@@ -723,7 +724,7 @@ internal class BetterPlayer(
 
                 override fun onRewind() {
                     exoPlayer?.let {
-                        val newPos = (it.currentPosition - SEEK_BACK_INCREMENT_MS)
+                        val newPos = (it.currentPosition - skipBackwardTimeInMs)
                             .coerceAtLeast(0)
                         it.seekTo(newPos)
                         sendSeekEvent(newPos)
@@ -887,8 +888,6 @@ internal class BetterPlayer(
         private const val FORMAT_OTHER = "other"
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
-        private const val SEEK_FORWARD_INCREMENT_MS = 15_000L
-        private const val SEEK_BACK_INCREMENT_MS = 15_000L
 
         //Clear cache without accessing BetterPlayerCache.
         fun clearCache(context: Context?, result: MethodChannel.Result) {

@@ -400,9 +400,14 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                         getParameter(dataSource, ACTIVITY_NAME_PARAMETER, "${flutterState?.applicationContext!!.applicationContext.packageName}.MainActivity")
                     val packageName =
                         getParameter(dataSource, PACKAGE_NAME_PARAMETER, flutterState?.applicationContext!!.applicationContext.packageName)
+                    val skipForwardTimeInMilliseconds: Number =
+                        getParameter(dataSource, SKIP_FORWARD_TIME_PARAMETER, 15000)
+                    val skipBackwardTimeInMilliseconds: Number =
+                        getParameter(dataSource, SKIP_BACKWARD_TIME_PARAMETER, 15000)
                     betterPlayer.setupPlayerNotification(
                         flutterState?.applicationContext!!,
-                        title, author, imageUrl, notificationChannelName, activityName, packageName
+                        title, author, imageUrl, notificationChannelName, activityName, packageName,
+                        skipForwardTimeInMilliseconds.toLong(), skipBackwardTimeInMilliseconds.toLong()
                     )
                 }
             }
@@ -551,6 +556,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         const val FILE_PATH_PARAMETER = "filePath"
         const val ACTIVITY_NAME_PARAMETER = "activityName"
         const val PACKAGE_NAME_PARAMETER = "packageName"
+        private const val SKIP_FORWARD_TIME_PARAMETER = "skipForwardTimeInMilliseconds"
+        private const val SKIP_BACKWARD_TIME_PARAMETER = "skipBackwardTimeInMilliseconds"
         const val MIN_BUFFER_MS = "minBufferMs"
         const val MAX_BUFFER_MS = "maxBufferMs"
         const val BUFFER_FOR_PLAYBACK_MS = "bufferForPlaybackMs"
