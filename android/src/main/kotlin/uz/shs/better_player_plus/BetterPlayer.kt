@@ -371,6 +371,8 @@ internal class BetterPlayer(
                 setUseRewindAction(true)
                 setUsePlayPauseActions(true)
                 setUseStopAction(false)
+                setUseFastForwardActionInCompactView(true)
+                setUseRewindActionInCompactView(true)
             }
 
             setupMediaSession(context)?.let {
