@@ -98,6 +98,8 @@ internal class BetterPlayer(
     private var drmSessionManager: DrmSessionManager? = null
     private val workManager: WorkManager
     private val workerObserverMap: HashMap<UUID, Observer<WorkInfo?>>
+    private var skipForwardTimeInMs: Long = 0L
+    private var skipBackwardTimeInMs: Long = 0L
     private val customDefaultLoadControl: CustomDefaultLoadControl =
         customDefaultLoadControl ?: CustomDefaultLoadControl()
     private var lastSendBufferedPosition = 0L
@@ -216,6 +218,8 @@ internal class BetterPlayer(
         activityName: String, packageName: String,
         skipForwardTimeInMs: Long, skipBackwardTimeInMs: Long
     ) {
+        this.skipForwardTimeInMs = skipForwardTimeInMs
+        this.skipBackwardTimeInMs = skipBackwardTimeInMs
         val mediaDescriptionAdapter: MediaDescriptionAdapter = object : MediaDescriptionAdapter {
             override fun getCurrentContentTitle(player: Player): String {
                 return title
@@ -320,6 +324,22 @@ internal class BetterPlayer(
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
         playerNotificationManager?.apply {
+            // Configure action visibility BEFORE setPlayer() so the first
+            // notification already contains the correct buttons.
+            setUseNextAction(false)
+            setUsePreviousAction(false)
+            setUseFastForwardAction(true)
+            setUseRewindAction(true)
+            setUsePlayPauseActions(true)
+            setUseStopAction(false)
+            setUseFastForwardActionInCompactView(true)
+            setUseRewindActionInCompactView(true)
+
+            // Set up MediaSession BEFORE posting the notification so
+            // Android 13+ system media controls pick up the actions.
+            setupMediaSession(context)?.let {
+                setMediaSessionToken(it.sessionToken)
+            }
 
             exoPlayer?.let {
                 val forwardingPlayer = object : ForwardingPlayer(it) {
@@ -342,18 +362,25 @@ internal class BetterPlayer(
 
                     override fun seekBack() {
                         val newPos = (exoPlayer.currentPosition - skipBackwardTimeInMs)
-                            .coerceAtLeast(0)
+                            .coerceAtLeast(0L)
                         exoPlayer.seekTo(newPos)
                         sendSeekEvent(newPos)
                     }
 
-                    override fun getAvailableCommands(): Player.Commands {
-                        return super.getAvailableCommands().buildUpon()
+                    override fun getSeekForwardIncrement(): Long = skipForwardTimeInMs
+
+                    override fun getSeekBackIncrement(): Long = skipBackwardTimeInMs
+
+                    override fun getAvailableCommands(): Player.Commands =
+                        super.getAvailableCommands().buildUpon()
                             .add(Player.COMMAND_PLAY_PAUSE)
                             .add(Player.COMMAND_SEEK_FORWARD)
                             .add(Player.COMMAND_SEEK_BACK)
+                            .remove(Player.COMMAND_SEEK_TO_NEXT)
+                            .remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                            .remove(Player.COMMAND_SEEK_TO_PREVIOUS)
+                            .remove(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                             .build()
-                    }
 
                     override fun isCommandAvailable(command: Int): Boolean {
                         if (command == Player.COMMAND_SEEK_FORWARD ||
@@ -362,22 +389,17 @@ internal class BetterPlayer(
                         ) {
                             return true
                         }
+                        if (command == Player.COMMAND_SEEK_TO_NEXT ||
+                            command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ||
+                            command == Player.COMMAND_SEEK_TO_PREVIOUS ||
+                            command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+                        ) {
+                            return false
+                        }
                         return super.isCommandAvailable(command)
                     }
                 }
                 setPlayer(forwardingPlayer)
-                setUseNextAction(false)
-                setUsePreviousAction(false)
-                setUseFastForwardAction(true)
-                setUseRewindAction(true)
-                setUsePlayPauseActions(true)
-                setUseStopAction(false)
-                setUseFastForwardActionInCompactView(true)
-                setUseRewindActionInCompactView(true)
-            }
-
-            setupMediaSession(context)?.let {
-                setMediaSessionToken(it.sessionToken)
             }
         }
 
@@ -386,20 +408,27 @@ internal class BetterPlayer(
             val actions = PlaybackStateCompat.ACTION_SEEK_TO or
                     PlaybackStateCompat.ACTION_PLAY or
                     PlaybackStateCompat.ACTION_PAUSE or
-                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                    PlaybackStateCompat.ACTION_FAST_FORWARD or
-                    PlaybackStateCompat.ACTION_REWIND
-            val playbackState: PlaybackStateCompat = if (exoPlayer?.isPlaying == true) {
-                PlaybackStateCompat.Builder()
-                    .setActions(actions)
-                    .setState(PlaybackStateCompat.STATE_PLAYING, position, 1.0f)
-                    .build()
-            } else {
-                PlaybackStateCompat.Builder()
-                    .setActions(actions)
-                    .setState(PlaybackStateCompat.STATE_PAUSED, position, 1.0f)
-                    .build()
-            }
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE
+            val stateValue = if (exoPlayer?.isPlaying == true)
+                PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+            val playbackState = PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setState(stateValue, position, 1.0f)
+                .addCustomAction(
+                    PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_REWIND_CUSTOM,
+                        "Rewind 15s",
+                        R.drawable.ic_replay_15
+                    ).build()
+                )
+                .addCustomAction(
+                    PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_FAST_FORWARD_CUSTOM,
+                        "Forward 15s",
+                        R.drawable.ic_forward_15
+                    ).build()
+                )
+                .build()
             mediaSession?.setPlaybackState(playbackState)
             refreshHandler?.postDelayed(refreshRunnable!!, 1000)
         }
@@ -725,16 +754,51 @@ internal class BetterPlayer(
                 override fun onRewind() {
                     exoPlayer?.let {
                         val newPos = (it.currentPosition - skipBackwardTimeInMs)
-                            .coerceAtLeast(0)
+                            .coerceAtLeast(0L)
                         it.seekTo(newPos)
                         sendSeekEvent(newPos)
                     }
                     super.onRewind()
                 }
+
+                override fun onCustomAction(action: String?, extras: android.os.Bundle?) {
+                    when (action) {
+                        ACTION_REWIND_CUSTOM -> onRewind()
+                        ACTION_FAST_FORWARD_CUSTOM -> onFastForward()
+                    }
+                }
             })
             mediaSession.isActive = true
-//            val mediaSessionConnector = MediaSessionConnector(mediaSession)
-//            mediaSessionConnector.setPlayer(exoPlayer)
+
+            val initialActions = PlaybackStateCompat.ACTION_SEEK_TO or
+                    PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE
+            val initialState = PlaybackStateCompat.Builder()
+                .setActions(initialActions)
+                .setState(
+                    if (exoPlayer?.isPlaying == true) PlaybackStateCompat.STATE_PLAYING
+                    else PlaybackStateCompat.STATE_PAUSED,
+                    exoPlayer?.currentPosition ?: 0L,
+                    1.0f
+                )
+                .addCustomAction(
+                    PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_REWIND_CUSTOM,
+                        "Rewind 15s",
+                        R.drawable.ic_replay_15
+                    ).build()
+                )
+                .addCustomAction(
+                    PlaybackStateCompat.CustomAction.Builder(
+                        ACTION_FAST_FORWARD_CUSTOM,
+                        "Forward 15s",
+                        R.drawable.ic_forward_15
+                    ).build()
+                )
+                .build()
+            mediaSession.setPlaybackState(initialState)
+
             this.mediaSession = mediaSession
             return mediaSession
         }
@@ -888,6 +952,8 @@ internal class BetterPlayer(
         private const val FORMAT_OTHER = "other"
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
+        private const val ACTION_REWIND_CUSTOM = "better_player_rewind"
+        private const val ACTION_FAST_FORWARD_CUSTOM = "better_player_fast_forward"
 
         //Clear cache without accessing BetterPlayerCache.
         fun clearCache(context: Context?, result: MethodChannel.Result) {
