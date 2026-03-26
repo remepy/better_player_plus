@@ -224,11 +224,11 @@ internal class BetterPlayer(
             @SuppressLint("UnspecifiedImmutableFlag")
             override fun createCurrentContentIntent(player: Player): PendingIntent? {
                 val packageName = context.applicationContext.packageName
-                val notificationIntent = Intent()
-                notificationIntent.setClassName(
-                    packageName,
-                    activityName
-                )
+                val notificationIntent = context.packageManager
+                    .getLaunchIntentForPackage(packageName)
+                    ?: Intent().apply {
+                        setClassName(packageName, "$packageName.$activityName")
+                    }
                 notificationIntent.flags = (Intent.FLAG_ACTIVITY_CLEAR_TOP
                         or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 return PendingIntent.getActivity(
@@ -318,12 +318,58 @@ internal class BetterPlayer(
             playerNotificationChannelName!!
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
+        // Set seek forward/back increments on ExoPlayer
+        exoPlayer?.seekBackIncrementMs = SEEK_BACK_INCREMENT_MS
+        exoPlayer?.seekForwardIncrementMs = SEEK_FORWARD_INCREMENT_MS
+
         playerNotificationManager?.apply {
 
             exoPlayer?.let {
-                setPlayer(ForwardingPlayer(exoPlayer))
+                val forwardingPlayer = object : ForwardingPlayer(it) {
+                    override fun play() {
+                        super.play()
+                        sendPlayEvent()
+                    }
+
+                    override fun pause() {
+                        super.pause()
+                        sendPauseEvent()
+                    }
+
+                    override fun seekForward() {
+                        super.seekForward()
+                        sendSeekEvent(exoPlayer.currentPosition)
+                    }
+
+                    override fun seekBack() {
+                        super.seekBack()
+                        sendSeekEvent(exoPlayer.currentPosition)
+                    }
+
+                    override fun getAvailableCommands(): Player.Commands {
+                        return super.getAvailableCommands().buildUpon()
+                            .add(Player.COMMAND_PLAY_PAUSE)
+                            .add(Player.COMMAND_SEEK_FORWARD)
+                            .add(Player.COMMAND_SEEK_BACK)
+                            .build()
+                    }
+
+                    override fun isCommandAvailable(command: Int): Boolean {
+                        if (command == Player.COMMAND_SEEK_FORWARD ||
+                            command == Player.COMMAND_SEEK_BACK ||
+                            command == Player.COMMAND_PLAY_PAUSE
+                        ) {
+                            return true
+                        }
+                        return super.isCommandAvailable(command)
+                    }
+                }
+                setPlayer(forwardingPlayer)
                 setUseNextAction(false)
                 setUsePreviousAction(false)
+                setUseFastForwardAction(true)
+                setUseRewindAction(true)
+                setUsePlayPauseActions(true)
                 setUseStopAction(false)
             }
 
@@ -334,14 +380,20 @@ internal class BetterPlayer(
 
         refreshHandler = Handler(Looper.getMainLooper())
         refreshRunnable = Runnable {
+            val actions = PlaybackStateCompat.ACTION_SEEK_TO or
+                    PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                    PlaybackStateCompat.ACTION_FAST_FORWARD or
+                    PlaybackStateCompat.ACTION_REWIND
             val playbackState: PlaybackStateCompat = if (exoPlayer?.isPlaying == true) {
                 PlaybackStateCompat.Builder()
-                    .setActions(PlaybackStateCompat.ACTION_SEEK_TO)
+                    .setActions(actions)
                     .setState(PlaybackStateCompat.STATE_PLAYING, position, 1.0f)
                     .build()
             } else {
                 PlaybackStateCompat.Builder()
-                    .setActions(PlaybackStateCompat.ACTION_SEEK_TO)
+                    .setActions(actions)
                     .setState(PlaybackStateCompat.STATE_PAUSED, position, 1.0f)
                     .build()
             }
@@ -644,6 +696,38 @@ internal class BetterPlayer(
                     sendSeekToEvent(pos)
                     super.onSeekTo(pos)
                 }
+
+                override fun onPlay() {
+                    exoPlayer?.play()
+                    sendPlayEvent()
+                    super.onPlay()
+                }
+
+                override fun onPause() {
+                    exoPlayer?.pause()
+                    sendPauseEvent()
+                    super.onPause()
+                }
+
+                override fun onFastForward() {
+                    exoPlayer?.let {
+                        val newPos = (it.currentPosition + SEEK_FORWARD_INCREMENT_MS)
+                            .coerceAtMost(it.duration)
+                        it.seekTo(newPos)
+                        sendSeekEvent(newPos)
+                    }
+                    super.onFastForward()
+                }
+
+                override fun onRewind() {
+                    exoPlayer?.let {
+                        val newPos = (it.currentPosition - SEEK_BACK_INCREMENT_MS)
+                            .coerceAtLeast(0)
+                        it.seekTo(newPos)
+                        sendSeekEvent(newPos)
+                    }
+                    super.onRewind()
+                }
             })
             mediaSession.isActive = true
 //            val mediaSessionConnector = MediaSessionConnector(mediaSession)
@@ -736,8 +820,27 @@ internal class BetterPlayer(
         }
     }
 
+    private fun sendPlayEvent() {
+        val event: MutableMap<String, Any> = HashMap()
+        event["event"] = "play"
+        eventSink.success(event)
+    }
+
+    private fun sendPauseEvent() {
+        val event: MutableMap<String, Any> = HashMap()
+        event["event"] = "pause"
+        eventSink.success(event)
+    }
+
     private fun sendSeekToEvent(positionMs: Long) {
         exoPlayer?.seekTo(positionMs)
+        val event: MutableMap<String, Any> = HashMap()
+        event["event"] = "seek"
+        event["position"] = positionMs
+        eventSink.success(event)
+    }
+
+    private fun sendSeekEvent(positionMs: Long) {
         val event: MutableMap<String, Any> = HashMap()
         event["event"] = "seek"
         event["position"] = positionMs
@@ -782,6 +885,8 @@ internal class BetterPlayer(
         private const val FORMAT_OTHER = "other"
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
+        private const val SEEK_FORWARD_INCREMENT_MS = 15_000L
+        private const val SEEK_BACK_INCREMENT_MS = 15_000L
 
         //Clear cache without accessing BetterPlayerCache.
         fun clearCache(context: Context?, result: MethodChannel.Result) {
