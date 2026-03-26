@@ -319,10 +319,6 @@ internal class BetterPlayer(
             playerNotificationChannelName!!
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
-        // Set seek forward/back increments on ExoPlayer
-        exoPlayer?.seekBackIncrementMs = skipBackwardTimeInMs
-        exoPlayer?.seekForwardIncrementMs = skipForwardTimeInMs
-
         playerNotificationManager?.apply {
 
             exoPlayer?.let {
@@ -338,13 +334,17 @@ internal class BetterPlayer(
                     }
 
                     override fun seekForward() {
-                        super.seekForward()
-                        sendSeekEvent(exoPlayer.currentPosition)
+                        val newPos = (exoPlayer.currentPosition + skipForwardTimeInMs)
+                            .coerceAtMost(exoPlayer.duration)
+                        exoPlayer.seekTo(newPos)
+                        sendSeekEvent(newPos)
                     }
 
                     override fun seekBack() {
-                        super.seekBack()
-                        sendSeekEvent(exoPlayer.currentPosition)
+                        val newPos = (exoPlayer.currentPosition - skipBackwardTimeInMs)
+                            .coerceAtLeast(0)
+                        exoPlayer.seekTo(newPos)
+                        sendSeekEvent(newPos)
                     }
 
                     override fun getAvailableCommands(): Player.Commands {
