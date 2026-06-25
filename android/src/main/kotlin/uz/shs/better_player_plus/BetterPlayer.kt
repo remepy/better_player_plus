@@ -338,7 +338,9 @@ internal class BetterPlayer(
             // Set up MediaSession BEFORE posting the notification so
             // Android 13+ system media controls pick up the actions.
             setupMediaSession(context)?.let {
-                setMediaSessionToken(it.sessionToken)
+                (it.sessionToken.token as? android.media.session.MediaSession.Token)?.let { token ->
+                    setMediaSessionToken(token)
+                }
             }
 
             exoPlayer?.let {
