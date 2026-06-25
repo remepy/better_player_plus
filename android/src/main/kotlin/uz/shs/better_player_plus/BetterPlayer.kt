@@ -338,9 +338,7 @@ internal class BetterPlayer(
             // Set up MediaSession BEFORE posting the notification so
             // Android 13+ system media controls pick up the actions.
             setupMediaSession(context)?.let {
-                (it.sessionToken.token as? android.media.session.MediaSession.Token)?.let { token ->
-                    setMediaSessionToken(token)
-                }
+                setCompatibleMediaSessionToken(it)
             }
 
             exoPlayer?.let {
@@ -818,6 +816,26 @@ internal class BetterPlayer(
             mediaSession?.release()
         }
         mediaSession = null
+    }
+
+    private fun PlayerNotificationManager.setCompatibleMediaSessionToken(
+        mediaSession: MediaSessionCompat
+    ) {
+        val compatToken = mediaSession.sessionToken
+        val tokenCandidates = listOfNotNull(compatToken.token, compatToken)
+        val method = javaClass.methods.firstOrNull { method ->
+            method.name == "setMediaSessionToken" &&
+                    method.parameterTypes.size == 1 &&
+                    tokenCandidates.any { token -> method.parameterTypes[0].isInstance(token) }
+        }
+        val token = tokenCandidates.firstOrNull { token ->
+            method?.parameterTypes?.get(0)?.isInstance(token) == true
+        }
+        if (method != null && token != null) {
+            method.invoke(this, token)
+        } else {
+            Log.w(TAG, "Unable to set media session token on PlayerNotificationManager")
+        }
     }
 
     fun setAudioTrack(name: String, index: Int) {
