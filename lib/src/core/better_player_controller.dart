@@ -676,10 +676,12 @@ class BetterPlayerController {
     _postEvent(BetterPlayerEvent(BetterPlayerEventType.seekTo,
         parameters: <String, dynamic>{_durationParameter: moment}));
 
-    final Duration? currentDuration = videoPlayerController!.value.duration;
-    if (currentDuration == null) {
+    // An unknown duration (see VideoPlayerValue.hasKnownDuration) can't be
+    // overshot, so it never means the video finished.
+    if (!videoPlayerController!.value.hasKnownDuration) {
       return;
     }
+    final Duration currentDuration = videoPlayerController!.value.duration!;
     if (moment > currentDuration) {
       _postEvent(BetterPlayerEvent(BetterPlayerEventType.finished));
     } else {

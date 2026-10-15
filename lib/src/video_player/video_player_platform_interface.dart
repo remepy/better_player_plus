@@ -401,7 +401,8 @@ class VideoEvent {
 
   /// Duration of the video.
   ///
-  /// Only used if [eventType] is [VideoEventType.initialized].
+  /// Only used if [eventType] is [VideoEventType.initialized] or
+  /// [VideoEventType.durationChanged].
   final Duration? duration;
 
   /// Size of the video.
@@ -471,6 +472,11 @@ enum VideoEventType {
 
   /// Picture in picture mode has been dismissed
   pipStop,
+
+  /// The native player learned the media's length after reporting it as
+  /// unknown in the initialized event (e.g. an HLS item that was ready to
+  /// play before its duration was loaded).
+  durationChanged,
 
   /// An unknown event has been received.
   unknown,

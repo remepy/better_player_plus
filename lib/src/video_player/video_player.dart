@@ -91,6 +91,16 @@ class VideoPlayerValue {
   /// Indicates whether or not the video has been loaded and is ready to play.
   bool get initialized => duration != null;
 
+  /// Below this, a reported [duration] means "unknown": AVPlayer sends 0 when
+  /// it reads an HLS item's length before it is known, ExoPlayer about 1 ms
+  /// for C.TIME_UNSET.
+  static const Duration minKnownDuration = Duration(seconds: 1);
+
+  /// Whether [duration] is the media's real length, so seeks can be bounded
+  /// by it.
+  bool get hasKnownDuration =>
+      duration != null && duration! >= minKnownDuration;
+
   /// Indicates whether or not the video is in an error state. If this is true
   /// [errorDescription] should have information about the problem.
   bool get hasError => errorDescription != null;
@@ -252,6 +262,14 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           break;
         case VideoEventType.pipStop:
           value = value.copyWith(isPip: false);
+          break;
+        case VideoEventType.durationChanged:
+          // Only fill in a length the initialized event couldn't give; a
+          // late event must not overwrite a known duration or mark an
+          // uninitialized controller as initialized.
+          if (value.initialized && !value.hasKnownDuration) {
+            value = value.copyWith(duration: event.duration);
+          }
           break;
         case VideoEventType.unknown:
           break;
@@ -548,9 +566,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     _timer?.cancel();
     bool isPlaying = value.isPlaying;
     final int positionInMs = value.position.inMilliseconds;
-    final int durationInMs = value.duration?.inMilliseconds ?? 0;
+    final bool hasKnownDuration = value.hasKnownDuration;
 
-    if (positionInMs >= durationInMs && position?.inMilliseconds == 0) {
+    // Seeking to 0 from the end replays; with an unknown duration every
+    // position would count as the end.
+    if (hasKnownDuration &&
+        positionInMs >= value.duration!.inMilliseconds &&
+        position?.inMilliseconds == 0) {
       isPlaying = true;
     }
     if (_isDisposed) {
@@ -558,9 +580,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
 
     Duration? positionToSeek = position;
-    if (position! > value.duration!) {
+    // With an unknown duration the native player bounds the seek itself;
+    // clamping to it here would send every seek to 0.
+    if (hasKnownDuration && position! > value.duration!) {
       positionToSeek = value.duration;
-    } else if (position < const Duration()) {
+    } else if (position! < const Duration()) {
       positionToSeek = const Duration();
     }
     _seekPosition = positionToSeek;
