@@ -11,6 +11,11 @@ static void* playbackLikelyToKeepUpContext = &playbackLikelyToKeepUpContext;
 static void* playbackBufferEmptyContext = &playbackBufferEmptyContext;
 static void* playbackBufferFullContext = &playbackBufferFullContext;
 static void* presentationSizeContext = &presentationSizeContext;
+static void* durationContext = &durationContext;
+
+// Matches VideoPlayerValue.minKnownDuration on the Dart side: anything shorter
+// is treated as "length not known yet".
+static const int64_t kMinKnownDurationMillis = 1000;
 
 
 #if TARGET_OS_IOS
@@ -48,6 +53,7 @@ AVPictureInPictureController *_pipController;
         [item addObserver:self forKeyPath:@"loadedTimeRanges" options:0 context:timeRangeContext];
         [item addObserver:self forKeyPath:@"status" options:0 context:statusContext];
         [item addObserver:self forKeyPath:@"presentationSize" options:0 context:presentationSizeContext];
+        [item addObserver:self forKeyPath:@"duration" options:0 context:durationContext];
         [item addObserver:self
                forKeyPath:@"playbackLikelyToKeepUp"
                   options:0
@@ -70,6 +76,7 @@ AVPictureInPictureController *_pipController;
 
 - (void)clear {
     _isInitialized = false;
+    _lastReportedDuration = 0;
     _isPlaying = false;
     _disposed = false;
     _failedCount = 0;
@@ -92,6 +99,7 @@ AVPictureInPictureController *_pipController;
         [_player removeObserver:self forKeyPath:@"rate" context:nil];
         [[_player currentItem] removeObserver:self forKeyPath:@"status" context:statusContext];
         [[_player currentItem] removeObserver:self forKeyPath:@"presentationSize" context:presentationSizeContext];
+        [[_player currentItem] removeObserver:self forKeyPath:@"duration" context:durationContext];
         [[_player currentItem] removeObserver:self
                                    forKeyPath:@"loadedTimeRanges"
                                       context:timeRangeContext];
@@ -373,6 +381,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     else if (context == presentationSizeContext){
         [self onReadyToPlay];
     }
+    else if (context == durationContext) {
+        [self onDurationChanged];
+    }
 
     else if (context == statusContext) {
         AVPlayerItem* item = (AVPlayerItem*)object;
@@ -473,15 +484,35 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         }
 
         _isInitialized = true;
+        _lastReportedDuration = [self duration];
         [self updatePlayingState];
         _eventSink(@{
             @"event" : @"initialized",
-            @"duration" : @([self duration]),
+            @"duration" : @(_lastReportedDuration),
             @"width" : @(fabs(realSize.width) ? : width),
             @"height" : @(fabs(realSize.height) ? : height),
             @"key" : _key
         });
     }
+}
+
+// An HLS item can be ready to play before AVPlayer knows its length; the
+// initialized event then carries 0. Report the real length once it loads so
+// Dart can bound seeks and show progress. Live streams stay indefinite and
+// never get here with a known length.
+- (void)onDurationChanged {
+    if (!_eventSink || !_isInitialized || !_key) {
+        return;
+    }
+    if (_lastReportedDuration >= kMinKnownDurationMillis) {
+        return;
+    }
+    int64_t duration = [self duration];
+    if (duration < kMinKnownDurationMillis) {
+        return;
+    }
+    _lastReportedDuration = duration;
+    _eventSink(@{@"event" : @"durationChanged", @"duration" : @(duration), @"key" : _key});
 }
 
 - (void)play {

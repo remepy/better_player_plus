@@ -103,6 +103,7 @@ internal class BetterPlayer(
     private val customDefaultLoadControl: CustomDefaultLoadControl =
         customDefaultLoadControl ?: CustomDefaultLoadControl()
     private var lastSendBufferedPosition = 0L
+    private var lastReportedDuration = 0L
 
     init {
         val loadBuilder = DefaultLoadControl.Builder()
@@ -140,6 +141,7 @@ internal class BetterPlayer(
     ) {
         this.key = key
         isInitialized = false
+        lastReportedDuration = 0L
         val uri = Uri.parse(dataSource)
         var dataSourceFactory: DataSource.Factory?
         val userAgent = getUserAgent(headers)
@@ -588,6 +590,10 @@ internal class BetterPlayer(
                 }
             }
 
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                sendDurationChangedIfNowKnown()
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 eventSink.error("VideoError", "Video player had error $error", "")
             }
@@ -684,7 +690,8 @@ internal class BetterPlayer(
             val event: MutableMap<String, Any?> = HashMap()
             event["event"] = "initialized"
             event["key"] = key
-            event["duration"] = getDuration()
+            lastReportedDuration = getDuration()
+            event["duration"] = lastReportedDuration
             if (exoPlayer?.videoFormat != null) {
                 val videoFormat = exoPlayer.videoFormat
                 var width = videoFormat?.width
@@ -703,6 +710,29 @@ internal class BetterPlayer(
     }
 
     private fun getDuration(): Long = exoPlayer?.duration ?: 0L
+
+    /**
+     * ExoPlayer can reach STATE_READY before the timeline knows the media's
+     * length, so the initialized event carries C.TIME_UNSET. Report the real
+     * length once the timeline has it so Dart can bound seeks and show
+     * progress. Sent at most once per data source, and only when the
+     * initialized duration was unknown, so live windows don't stream updates.
+     */
+    private fun sendDurationChangedIfNowKnown() {
+        if (!isInitialized || lastReportedDuration >= MIN_KNOWN_DURATION_MS) {
+            return
+        }
+        val duration = getDuration()
+        if (duration == C.TIME_UNSET || duration < MIN_KNOWN_DURATION_MS) {
+            return
+        }
+        lastReportedDuration = duration
+        val event: MutableMap<String, Any?> = HashMap()
+        event["event"] = "durationChanged"
+        event["key"] = key
+        event["duration"] = duration
+        eventSink.success(event)
+    }
 
     /**
      * Create media session which will be used in notifications, pip mode.
@@ -969,6 +999,10 @@ internal class BetterPlayer(
         private const val FORMAT_DASH = "dash"
         private const val FORMAT_HLS = "hls"
         private const val FORMAT_OTHER = "other"
+
+        // Matches VideoPlayerValue.minKnownDuration on the Dart side: anything
+        // shorter is treated as "length not known yet".
+        private const val MIN_KNOWN_DURATION_MS = 1000L
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
         private const val ACTION_REWIND_CUSTOM = "better_player_rewind"
