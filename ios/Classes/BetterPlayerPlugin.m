@@ -116,10 +116,8 @@ bool _remoteCommandsInitialized = false;
 }
 
 - (void) setRemoteCommandsNotificationNotActive{
-    if ([_players count] == 0) {
-        [[AVAudioSession sharedInstance] setActive:false error:nil];
-    }
-
+    // Don't deactivate the AVAudioSession here. It is shared by the whole app, and
+    // deactivating it silences any other audio engine (e.g. Unity) still using it.
     [[UIApplication sharedApplication] endReceivingRemoteControlEvents];
 }
 
@@ -389,9 +387,9 @@ bool _remoteCommandsInitialized = false;
                     [player dispose];
                 }
             });
-            if ([_players count] == 0) {
-                [[AVAudioSession sharedInstance] setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
-            }
+            // Don't deactivate the AVAudioSession when the last player goes away. The session
+            // is shared by the whole app, so deactivating it silences other audio engines
+            // (e.g. Unity) that start or resume right after a video closes. The app owns it.
             result(nil);
         } else if ([@"setLooping" isEqualToString:call.method]) {
             [player setIsLooping:[argsMap[@"looping"] boolValue]];
