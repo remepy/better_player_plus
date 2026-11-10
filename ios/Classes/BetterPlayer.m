@@ -17,6 +17,10 @@ static void* durationContext = &durationContext;
 // is treated as "length not known yet".
 static const int64_t kMinKnownDurationMillis = 1000;
 
+// A seek clamped to the duration can land a frame short of it, so "at the end"
+// allows this much slack.
+static const int64_t kEndOfPlaybackToleranceMillis = 100;
+
 
 #if TARGET_OS_IOS
 void (^__strong _Nonnull _restoreUserInterfaceForPIPStopCompletionHandler)(BOOL);
@@ -118,16 +122,41 @@ AVPictureInPictureController *_pipController;
 }
 
 - (void)itemDidPlayToEndTime:(NSNotification*)notification {
-    if (_isLooping) {
-        AVPlayerItem* p = [notification object];
-        [p seekToTime:kCMTimeZero completionHandler:nil];
-    } else {
-        if (_eventSink) {
-            _eventSink(@{@"event" : @"completed", @"key" : _key});
-            [ self removeObservers];
+    [self handlePlaybackEnded];
+}
 
-        }
+/// Shared end-of-playback path. AVPlayer only posts
+/// AVPlayerItemDidPlayToEndTimeNotification when playback *reaches* the end,
+/// never when a seek or a play() lands on it (e.g. scrubbing to the end), so
+/// those callers invoke this directly. Matches Android, where ExoPlayer
+/// reports STATE_ENDED in both cases.
+- (void)handlePlaybackEnded {
+    if (_isLooping) {
+        [[_player currentItem] seekToTime:kCMTimeZero completionHandler:nil];
+        return;
     }
+    // Stop for real: otherwise the native side keeps "playing" a frozen
+    // last frame and the notification can still fire later, sending a
+    // duplicate completed event.
+    _isPlaying = false;
+    [_player pause];
+    if (_eventSink) {
+        _eventSink(@{@"event" : @"completed", @"key" : _key});
+        [self removeObservers];
+    }
+}
+
+/// Whether the playhead sits at the end of a finite item with a known length.
+/// Live streams and not-yet-known durations never count as ended.
+- (BOOL)isAtEndOfPlayback {
+    if (CMTIME_IS_INDEFINITE([_player currentItem].duration)) {
+        return NO;
+    }
+    int64_t duration = [self duration];
+    if (duration < kMinKnownDurationMillis) {
+        return NO;
+    }
+    return [self position] >= duration - kEndOfPlaybackToleranceMillis;
 }
 
 
@@ -518,6 +547,17 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)play {
     _stalledCount = 0;
     _isStalledCheckStarted = false;
+    // Playing from the end does nothing on AVPlayer and posts no end
+    // notification, so the player would sit "playing" forever (e.g. a drag
+    // that ended on the end of the seek bar resumes playback there).
+    if (_isInitialized && [self isAtEndOfPlayback]) {
+        if (!_isLooping) {
+            [self handlePlaybackEnded];
+            return;
+        }
+        // Looping: restart from the top, then play as usual below.
+        [[_player currentItem] seekToTime:kCMTimeZero completionHandler:nil];
+    }
     _isPlaying = true;
     [self updatePlayingState];
 }
@@ -560,6 +600,14 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         toleranceBefore:kCMTimeZero
          toleranceAfter:kCMTimeZero
       completionHandler:^(BOOL finished){
+        // A superseded seek (finished == NO) must not end playback: a newer
+        // seek from the same scrub is already on its way.
+        if (finished && [self isAtEndOfPlayback]) {
+            [self handlePlaybackEnded];
+            if (!_isLooping) {
+                return;
+            }
+        }
         if (wasPlaying){
             _player.rate = _playerRate;
         }
