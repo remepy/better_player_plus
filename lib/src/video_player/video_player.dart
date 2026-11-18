@@ -277,15 +277,17 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
 
     void errorListener(Object object) {
+      _timer?.cancel();
+      // Fails the pending load before listeners run, so a retry they start
+      // gets its own completer.
+      if (!_initializingCompleter.isCompleted) {
+        _initializingCompleter.completeError(object);
+      }
       if (object is PlatformException) {
         final PlatformException e = object;
         value = value.copyWith(errorDescription: e.message);
       } else {
         value.copyWith(errorDescription: object.toString());
-      }
-      _timer?.cancel();
-      if (!_initializingCompleter.isCompleted) {
-        _initializingCompleter.completeError(object);
       }
     }
 
